@@ -1,44 +1,5 @@
-﻿#######################################################################################
-#
-# V2.1
-# Rene.Hartmann
-# 23.02.2018
-#
-# Changelog
-#
-# V1.1     23.04.2018     Rene.Hartmann
-#                         Progressbar durch UPGBackground ersetzt
-#
-# V1.2     24.04.2018     Rene.Hartmann
-#                         Neues Design
-#
-# V1.3     06.08.2018     Rene.Hartmann
-#                         Zeitauswahl hinzugefügt
-#
-# V1.4     07.08.2018     Rene.Hartmann
-#                         VPN Abfrage hinzugefügt
-#
-# V2.0     20.08.2018     Rene.Hartmann
-#                         Logging erweitert
-#
-# V2.1     25.09.2018     Rene.Hartmann
-#                         Scheduled Task Option für Win7 eingefügt
-#                         CMTrace-Kompatible Log Option hinzugefügt
-#                         
-#
-#######################################################################################
-
-### Custom Variables ##################################################################
-$InplaceVersion = 17134
-$InplaceVersionText = "Windows 10 April 2018 Update Build 1803"
-$TSPackageID = "DMS0073F"
-$CompanyCode = "DMS"
-$WorkFolder = "C:\ProgramData\$CompanyCode\Inplace"
-$Background = "bg.png"
-$Logo = "Logo.png"
-$VPNAdresses = @("10.26.254*","172.18.249*","172.26.125*","172.26.252*","172.26.120*")
-$Header = "Logo" # 'Logo' or 'Title'
-$Lang = "DE" # 'DE' or 'EN' 
+﻿### Import Config File ################################################################
+. "$PSScriptRoot\Config.ps1"
 #######################################################################################
 
 ### Import Language File ##############################################################

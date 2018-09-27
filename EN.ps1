@@ -3,7 +3,7 @@
 ### Text Variables ####################################################################
 # Main Window
 $WindowTitle = "Windows 10 Update"
-$CountdownText = "Installation starts in:"
+$CountdownText = "Installation starts automatically in:"
 $RemainText1 = "Days left"
 $RemainText2 = "1 day left"
 $RemainText3 = "due today"

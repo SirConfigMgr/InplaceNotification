@@ -1124,7 +1124,8 @@ $Info = "User Chose Another Time -  Prepare Scheduled Task"
 Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
 
 If ($OSBuild -eq 7601) {
-$OldTask = Get-ScheduledJob -Name "Windows 10 Inplace Update"If ($OldTask) {
+$OldTask = Get-ScheduledJob -Name "Windows 10 Inplace Update"
+If ($OldTask) {
     Unregister-ScheduledJob -InputObject $OldTask -ErrorVariable ErrorAction
     If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
     Else {
@@ -1344,7 +1345,7 @@ If ($StartBySchedTask -eq $True) {
     }
 
 ### Run Test ########################################################################   
-If (($AlreadyCompliant -eq $true)) {GenerateForm} #/ Test
+#If (($AlreadyCompliant -eq $true)) {GenerateForm} #/ Test
 
 ### Start GUI #######################################################################
-#If (!($AlreadyCompliant -eq $true) -and $StartBySchedTask -eq $Null) {GenerateForm}
+If (!($AlreadyCompliant -eq $true) -and $StartBySchedTask -eq $Null) {GenerateForm}

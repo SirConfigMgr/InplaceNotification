@@ -234,7 +234,7 @@ If (!($AlreadyCompliant -eq $True)) {
     $Info = "Prepare Countdown"
     Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
     Try {
-        $TargetDate = (Get-ItemProperty HKLM:\SOFTWARE\DMS\WindowsInplaceUpdate -Name TargetDate  -ErrorAction Stop).TargetDate
+        $TargetDate = (Get-ItemProperty HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name TargetDate  -ErrorAction Stop).TargetDate
         $Info = "Target-Date $TargetDate"
         Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
         }

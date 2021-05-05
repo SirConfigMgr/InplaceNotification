@@ -11,7 +11,7 @@
 #####################################################################################
 
 ### Log Function ####################################################################
-function Write-Log {
+Function Write-Log {
 
 [CmdletBinding()]
 Param(
@@ -47,6 +47,18 @@ $Content = "<![LOG[$Message]LOG]!>" +`
 Add-Content -Path $Path -Value $Content
 }
 
+### Create Shortcut #################################################################
+Function CreateShortcut {
+$Shell = New-Object -ComObject ("WScript.Shell")
+$ShortCut = $Shell.CreateShortcut($env:ALLUSERSPROFILE + "\Desktop\Windows 10 Upgrade.lnk")
+$ShortCut.TargetPath="$WorkFolder\bin\RunSilent.exe"
+$ShortCut.WorkingDirectory = "$WorkFolder\bin";
+$ShortCut.WindowStyle = 1;
+$ShortCut.IconLocation = "$WorkFolder\Images\Icon.ico";
+$ShortCut.Description = "Windows 10 Upgrade";
+$ShortCut.Save()
+}
+
 ### Start ###########################################################################
 #region
 If (Test-Path $InitialLog) {Remove-Item $InitialLog -Force}
@@ -76,7 +88,7 @@ Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information 
 
 ### Work Folder #####################################################################
 #region
-$Info = "Prepare Workfolder"
+$Info = "Prepare Workfolder $WorkFolder"
 Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "WorkFolder" -Type Info
 If (!(Test-Path -Path $WorkFolder)) {
     New-Item -Path $WorkFolder -ItemType directory -ErrorVariable ErrorAction
@@ -133,7 +145,7 @@ If (!(Test-Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate)) {
         }
     }
     Else {
-        $Info = "Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate"
+        $Info = "Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate Already Exist"
         Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "Registry" -Type Warning
     }
 $Info = "Create Values"
@@ -189,6 +201,7 @@ If ($OSBuild -ge $InplaceVersion) {
         }
     }
     Else {
+        $AlreadyCompliant = $False
         $Info = "System Not Compliant - Update Needed"
         Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "Compliance" -Type Warning
         If (Test-Path -Path $WorkFolder\$InplaceVersion\Inplace_Compliant.txt) {
@@ -209,7 +222,7 @@ Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "Copy" -Typ
 Move-Item $InitialLog -Destination $WorkFolder -ErrorVariable ErrorAction -Force
 If ($ErrorAction) {Write-Log -Path $InitialLog -Message ($ErrorAction | Out-String) -Component "Copy" -Type Error}
     Else {
-    $Info = "Moved Initial Log"
+    $Info = "Moved Initial Log From $InitialLog To $WorkFolder"
     Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Copy" -Type Info
     }
 If (Test-Path $InitialLog) {Remove-Item $InitialLog -Force}
@@ -228,28 +241,55 @@ $Today = Get-Date
 If (!($AlreadyCompliant -eq $True)) {
     $Info = "Prepare Countdown"
     Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
-    Try {
-        $TargetDate = (Get-ItemProperty HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name TargetDate  -ErrorAction Stop).TargetDate
-        $Info = "Target-Date $TargetDate"
-        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
-        }
-        Catch {
-            $TargetDate = ($Today).AddDays($MaximumTime)
+    If ($EndDateEnabled -eq $False) {
+        Try {
+            $TargetDate = (Get-ItemProperty HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name TargetDate  -ErrorAction Stop).TargetDate
             $Info = "Target-Date $TargetDate"
             Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
-            New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name StartDate -Value $Today -ErrorVariable ErrorAction -Force
-            If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "Countdown" -Type Error}
-            Else {
-                $Info = "Created Value StartDate $Today"
+            }
+            Catch {
+                $TargetDate = ($Today).AddDays($MaximumTime)
+                $Info = "Target-Date $TargetDate"
                 Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
-                }
-            New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name TargetDate -Value $TargetDate -ErrorVariable ErrorAction -Force
-            If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "Countdown" -Type Error}
-            Else {
-                $Info = "Created Value TargetDate $TargetDate"
-                Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
+                New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name StartDate -Value $Today -ErrorVariable ErrorAction -Force
+                If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "Countdown" -Type Error}
+                Else {
+                    $Info = "Created Value StartDate $Today"
+                    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
+                    }
+                New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name TargetDate -Value $TargetDate -ErrorVariable ErrorAction -Force
+                If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "Countdown" -Type Error}
+                Else {
+                    $Info = "Created Value TargetDate $TargetDate"
+                    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
+                    }
                 }
             }
+            Elseif ($EndDateEnabled -eq $True) {
+                Try {
+                    $TargetDate = (Get-ItemProperty HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name TargetDate  -ErrorAction Stop).TargetDate
+                    $Info = "Target-Date $TargetDate"
+                    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
+                    }
+                    Catch {
+                        $TargetDate = [datetime]::ParseExact($EndDate,'dd.MM.yyyy HH:mm',$null)
+                        $Info = "Target-Date $TargetDate"
+                        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
+                        New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name StartDate -Value $Today -ErrorVariable ErrorAction -Force
+                        If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "Countdown" -Type Error}
+                        Else {
+                            $Info = "Created Value StartDate $Today"
+                            Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
+                            }
+                        New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name TargetDate -Value $TargetDate -ErrorVariable ErrorAction -Force
+                        If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "Countdown" -Type Error}
+                        Else {
+                            $Info = "Created Value TargetDate $TargetDate"
+                            Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
+                            }
+                        }
+                    }
+
     $RemainingDays = (New-TimeSpan $Today $TargetDate).Days
     $Info = "Remaining Days  $RemainingDays"
     Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
@@ -261,6 +301,7 @@ If (!($AlreadyCompliant -eq $True)) {
 $Info = "Check If Script Is Startet By Scheduled Task"
 Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
 If (Test-Path $WorkFolder\$InplaceVersion\StartBySchedTask.txt) {
+    $StartBySchedTask = $True
     $Info = "True - No User Interaction"
     Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Warning
     }
@@ -270,312 +311,574 @@ If (Test-Path $WorkFolder\$InplaceVersion\StartBySchedTask.txt) {
         }
 #endregion
 
-### Main Window #####################################################################
-Function GenerateForm {
+### Check If Scheduled Task Is Created And Target Date Is Reached ###################
+#region
+$Info = "Check If Scheduled Task Is Created And Target Date Is Reached"
+Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
 
+If ($OSBuild -eq 7601) {
+$Task = Get-ScheduledJob -Name "Windows 10 Inplace Update" -ErrorAction SilentlyContinue
+    }
+
+If ($OSBuild -gt 7601) {
+$Task = Get-ScheduledTask -TaskName "Windows 10 Inplace Update" -ErrorAction SilentlyContinue
+    }
+
+If ($Task) {
+    $Info = "Scheduled Task Found"
+    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+    $SchedTaskDate = (Get-ItemProperty HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name SchedTaskDate  -ErrorAction Stop).SchedTaskDate
+    $Info = "Scheduled Task Date Is $SchedTaskDate"
+    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+    If (($Today).tostring("yyyy-MM-dd") -eq $SchedTaskDate) {
+        $Info = "Scheduled Task Target Date Reached"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Warning
+        $TargetDayReached = $True
+        If (Test-Path -Path $WorkFolder\$InplaceVersion\TargetDateNotReached.txt) {
+            Remove-Item -Path $WorkFolder\$InplaceVersion\TargetDateNotReached.txt -ErrorVariable ErrorAction -Force
+            If ($ErrorAction) {Write-Log -Path $InitialLog -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+            Else {
+                $Info = "Deleted File $WorkFolder\$InplaceVersion\TargetDateNotReached.txt"
+                Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+                }
+            }
+        }
+    Elseif (($Today).tostring("yyyy-MM-dd") -gt $SchedTaskDate) {
+        $Info = "Scheduled Task Target Date Reached"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Warning
+        $TargetDayReached = $True
+        If (Test-Path -Path $WorkFolder\$InplaceVersion\TargetDateNotReached.txt) {
+            Remove-Item -Path $WorkFolder\$InplaceVersion\TargetDateNotReached.txt -ErrorVariable ErrorAction -Force
+            If ($ErrorAction) {Write-Log -Path $InitialLog -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+            Else {
+                $Info = "Deleted File $WorkFolder\$InplaceVersion\TargetDateNotReached.txt"
+                Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+                }
+            }
+        }
+    Else {
+        $Info = "Scheduled Task Target Date Not Reached"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+        $TargetDayReached = $False
+        If (!(Test-Path -Path $WorkFolder\$InplaceVersion\TargetDateNotReached.txt)) {
+        New-Item -Path $WorkFolder\$InplaceVersion\TargetDateNotReached.txt -ErrorVariable ErrorAction
+        If ($ErrorAction) {Write-Log -Path $InitialLog -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+            Else {
+            $Info = "Created File $WorkFolder\$InplaceVersion\TargetDateNotReached.txt"
+            Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+            }
+        }
+    }
+}
+    Else {
+        $Info = "No Scheduled Task Found"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+        }
+#endregion
+
+### Xaml Code Main Form #############################################################
+Function GenerateForm {
 Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 2 -Message "Show Inplace Message."
 $Info = "Show Inplace Message"
 Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Info
 
-[reflection.assembly]::loadwithpartialname("System.Windows.Forms") | Out-Null
-[reflection.assembly]::loadwithpartialname("System.Drawing") | Out-Null
+[xml]$inputXML = @"
 
+<Controls:MetroWindow
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        GlowBrush="{DynamicResource AccentColorBrush}"
+        BorderBrush="{DynamicResource AccentColorBrush}"
+        BorderThickness="1"
+        WindowStartupLocation="CenterScreen"
+        Title="Windows Upgrade"
+        Height="600" 
+        Width="1000" 
+        Background="$BackgroundColor" 
+        Topmost="True" 
+        ResizeMode="NoResize" 
+        ShowMinButton="False" 
+        ShowMaxRestoreButton="False" 
+        ShowCloseButton="False" 
+        WindowButtonCommandsOverlayBehavior="HiddenTitleBar">
 
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/$WindowThemeColor.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.FlatButton.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
 
-$form1 = New-Object System.Windows.Forms.Form
-$othertimebutton = New-Object System.Windows.Forms.Button
-$timelefttext = New-Object System.Windows.Forms.Label
-$text = New-Object System.Windows.Forms.Label
-$nobutton = New-Object System.Windows.Forms.Button
-$okbutton = New-Object System.Windows.Forms.Button
-$logo = New-Object System.Windows.Forms.PictureBox
-If ($WindowsLogoActive -eq "true") {$windowslogo = New-Object System.Windows.Forms.PictureBox}
-$titel = New-Object System.Windows.Forms.Label
-$timer = New-Object System.Windows.Forms.Timer
-$TimeRemaining_Label = New-Object System.Windows.Forms.Label
-$Countdown_Label = New-Object System.Windows.Forms.Label
-$InitialFormWindowState = New-Object System.Windows.Forms.FormWindowState
+    <Grid>
+        <Label x:Name="text" Content="$InplaceText" HorizontalAlignment="Left" Margin="29,168,0,0" VerticalAlignment="Top" Height="297" Width="645" FontSize="14" Foreground="$TextColor"/>
+        <Button x:Name="okbutton" Content="$OkButtonText" HorizontalAlignment="Left" Margin="290,502,0,0" VerticalAlignment="Top" Width="141"/>
+        <Button x:Name="nobutton" Content="$NoButtonText" HorizontalAlignment="Left" Margin="579,502,0,0" VerticalAlignment="Top" Width="120"/>
+        <Button x:Name="othertimebutton" Content="$OtherTimeButtonText" HorizontalAlignment="Left" Margin="436,502,0,0" VerticalAlignment="Top" Width="138"/>
+        <Image x:Name="logo" Margin="10,10,771,419" Source="$ScriptPath\Images\$Logo" RenderOptions.BitmapScalingMode="Fant" Stretch="Fill" Width="200" Height="133"/>
+        <Image x:Name="windowslogo" Margin="691,154,51,165" Source="$ScriptPath\Images\$WindowsLogo" Stretch="Fill" RenderOptions.BitmapScalingMode="NearestNeighbor" RenderOptions.EdgeMode="Aliased"/>
+        <Label x:Name="timelefttext" Content="" HorizontalAlignment="Left" Margin="710,505,0,0" VerticalAlignment="Top" Foreground="$TimeLeftColor"/>
+        <Label x:Name="TimeRemaining_Label" Content="$CountdownText" HorizontalAlignment="Left" Margin="290,465,0,0" VerticalAlignment="Top" FontSize="14" Width="364" Foreground="$CountDownLabelTextColor" FontWeight="Bold"/>
+        <Label x:Name="Countdown_Label" Content="00:00:00" HorizontalAlignment="Left" Margin="550,465,0,0" VerticalAlignment="Top" Foreground="$CountDownTextColor" FontSize="14" FontWeight="Bold"/>
+    </Grid>
 
-$handler_nobutton_Click= 
-{
-If (!(Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt)) {
-    New-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt -ErrorVariable ErrorAction
-    If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "MainWindow" -Type Error}
-    Else {
-        $Info = "Created File $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt"
-        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Info
-        }
-    }
-$form1.Close()
-Write-EventLog -LogName Application -Source Win10Inplace -EntryType Warning -EventId 4 -Message "User deferred Update."
-$Info = "User Deferred Update - Close Window"
-Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Warning
-[System.Environment]::Exit(99)
-}
+</Controls:MetroWindow>
 
-$okbutton_OnClick= 
-{
-$Info = "User Started Update - Start Prereq Check"
-Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Info
-CheckDiskSpace
-CheckBattery
-CheckRebootPending
-CheckVPN
-If ($global:CheckError -eq $true) {
-    ShowMessage
-    }
-    Else {
-    If (Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt) {
-        Remove-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt -ErrorVariable ErrorAction -Force
+"@ 
+# Load Xaml Code 
+[void][System.Reflection.Assembly]::LoadWithPartialName('presentationframework')
+[xml]$XAML = $inputXML
+$reader=(New-Object System.Xml.XmlNodeReader $xaml)
+$Form1=[Windows.Markup.XamlReader]::Load( $reader )
+
+# Gui Objects
+#region
+$text = $Form1.Findname("text")
+$okbutton = $Form1.Findname("okbutton")
+$nobutton = $Form1.Findname("nobutton")
+$othertimebutton = $Form1.Findname("othertimebutton")
+$logo = $Form1.Findname("logo")
+$line = $Form1.Findname("line")
+$windowslogo = $Form1.Findname("windowslogo")
+$timelefttext = $Form1.Findname("timelefttext")
+$TimeRemaining_Label = $Form1.Findname("TimeRemaining_Label")
+$Countdown_Label = $Form1.Findname("Countdown_Label")
+#endregion
+
+# Actions
+#region
+$othertimebutton.Add_Click({
+    OtherTime
+})
+
+$nobutton.Add_Click({
+    [MahApps.Metro.Controls.Dialogs.DialogManager]::ShowModalMessageExternal($Form1,"Test","Test",[MahApps.Metro.Controls.Dialogs.MessageDialogStyle]::Affirmative)
+    If (!(Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt)) {
+        New-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt -ErrorVariable ErrorAction
         If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "MainWindow" -Type Error}
         Else {
-            $Info = "Removed File $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt"
+            $Info = "Created File $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt"
             Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Info
             }
         }
-    Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 3 -Message "$InplaceVersionText started."
-    $Info = "Check Passed -  Start $InplaceVersionText And Close Window"
+    $form1.Close()
+    Write-EventLog -LogName Application -Source Win10Inplace -EntryType Warning -EventId 4 -Message "User deferred Update."
+    NextRunTimer
+    [System.Environment]::Exit(99)
+})
+
+$okbutton.Add_Click({
+    $Info = "User Started Update - Start Prereq Check"
     Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Info
-    }
-$form1.Close()
-}
+    CheckDiskSpace
+    CheckBattery
+    CheckRebootPending
+    CheckVPN
+    If ($global:CheckError -eq $true) {
+        ShowMessage
+        }
+        Else {
+        If (Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt) {
+            Remove-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt -ErrorVariable ErrorAction -Force
+            If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "MainWindow" -Type Error}
+            Else {
+                $Info = "Removed File $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt"
+                Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Info
+                }
+            }
+        Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 3 -Message "$InplaceVersionText started."
+        $Info = "Check Passed -  Start $InplaceVersionText And Close Window"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Info
+        }
+    If (Get-Process -Name lync -InformationAction SilentlyContinue) {Stop-Process -Name lync -Force -InformationAction SilentlyContinue}
+    $form1.Close()
+})
+#endregion
 
-$othertimebutton_OnClick= 
-{
-OtherTime
-
-}
-
-$OnLoadForm_StateCorrection=
-{
-	$form1.WindowState = $InitialFormWindowState
-}
-
+# Variable Text
+#region
+If ($RemainingDays -gt 1) {$timelefttext.Content = "$RemainingDays $RemainText1"}
+    Elseif ($RemainingDays -eq 1) {$timelefttext.Content = "$RemainText2"}
+    Elseif ($RemainingDays -le 0) {$timelefttext.Content = "$RemainText3"}
 
 If ($RemainingDays -le 0) {
+    $timer = New-Object System.Windows.Forms.Timer
     $timer.Interval=1000
     $timer.add_Tick({CountDown})
     $script:StartTime = (Get-Date).AddMinutes($TotalTime)
     $timer.Start()
-    $TimeRemaining_Label.Visible = $true
-    $Countdown_Label.Visible = $true
+    $TimeRemaining_Label.Visibility = "Visible"
+    $Countdown_Label.Visibility = "Visible"
     }
     Else {
-        $TimeRemaining_Label.Visible = $false
-        $Countdown_Label.Visible = $false
+        $TimeRemaining_Label.Visibility = "Hidden"
+        $Countdown_Label.Visibility = "Hidden"
+        }
+#endregion
+
+$Form1.ShowDialog() | out-null
+}
+
+### Xaml Code Check Form ############################################################
+Function ShowMessage {
+[xml]$inputXML = @"
+<Controls:MetroWindow
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        GlowBrush="Black"
+        BorderThickness="0"
+        WindowStartupLocation="CenterScreen"
+        Title="$CheckWindowTitle"
+        Height="500" 
+        Width="500" 
+        Background="$BackgroundColor" 
+        Topmost="True" 
+        ResizeMode="NoResize" 
+        ShowMinButton="False" 
+        ShowMaxRestoreButton="False" 
+        ShowCloseButton="False" 
+        WindowButtonCommandsOverlayBehavior="HiddenTitleBar">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/$WindowThemeColor.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.FlatButton.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Label x:Name="CheckWindowText2" Content="$CheckWindowText2" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Height="82" Width="472" Foreground="$TextColor" FontSize="14"/>
+        <Label x:Name="ok1" Content="√" HorizontalAlignment="Left" Margin="10,73,0,0" VerticalAlignment="Top" FontSize="16" FontWeight="Bold" Foreground="#FF08F91E" Height="35"/>
+        <Label x:Name="ok2" Content="√" HorizontalAlignment="Left" Margin="10,148,0,0" VerticalAlignment="Top" FontSize="16" FontWeight="Bold" Foreground="#FF08F91E" Height="35"/>
+        <Label x:Name="ok3" Content="√" HorizontalAlignment="Left" Margin="10,223,0,0" VerticalAlignment="Top" FontSize="16" FontWeight="Bold" Foreground="#FF08F91E" Height="35"/>
+        <Label x:Name="ok4" Content="√" HorizontalAlignment="Left" Margin="10,298,0,0" VerticalAlignment="Top" FontSize="16" FontWeight="Bold" Foreground="#FF08F91E" Height="35"/>
+        <Label x:Name="x1" Content="X" HorizontalAlignment="Left" Margin="10,72,0,0" VerticalAlignment="Top" FontSize="16" FontWeight="Bold" Foreground="#FFF91E08" Height="35"/>
+        <Label x:Name="x2" Content="X" HorizontalAlignment="Left" Margin="10,147,0,0" VerticalAlignment="Top" FontSize="16" FontWeight="Bold" Foreground="#FFF91E08" Height="35"/>
+        <Label x:Name="x3" Content="X" HorizontalAlignment="Left" Margin="10,222,0,0" VerticalAlignment="Top" FontSize="16" FontWeight="Bold" Foreground="#FFF91E08" Height="35"/>
+        <Label x:Name="x4" Content="X" HorizontalAlignment="Left" Margin="10,297,0,0" VerticalAlignment="Top" FontSize="16" FontWeight="Bold" Foreground="#FFF91E08" Height="35"/>
+        <Label x:Name="textspace1" Content="Label" HorizontalAlignment="Left" Margin="35,76,0,0" VerticalAlignment="Top" Width="300" FontSize="14" Foreground="$TextColor"/>
+        <Label x:Name="textbattery1" Content="Label" HorizontalAlignment="Left" Margin="35,149,0,0" VerticalAlignment="Top" Width="300" FontSize="14" Foreground="$TextColor"/>
+        <Label x:Name="textreboot1" Content="Label" HorizontalAlignment="Left" Margin="35,224,0,0" VerticalAlignment="Top" Width="300" FontSize="14" Foreground="$TextColor"/>
+        <Label x:Name="textVPN1" Content="Label" HorizontalAlignment="Left" Margin="35,299,0,0" VerticalAlignment="Top" Width="300" FontSize="14" Foreground="$TextColor"/>
+        <Label x:Name="textspace" Content="$SpaceText" HorizontalAlignment="Left" Margin="35,106,0,0" VerticalAlignment="Top" Width="429" Height="39" Foreground="$TextColor"/>
+        <Label x:Name="textbattery" Content="$PowerText" HorizontalAlignment="Left" Margin="35,183,0,0" VerticalAlignment="Top" Width="429" Height="34" Foreground="$TextColor"/>
+        <Label x:Name="textreboot" Content="$RebootText" HorizontalAlignment="Left" Margin="35,253,0,0" VerticalAlignment="Top" Width="429" Height="34" Foreground="$TextColor"/>
+        <Label x:Name="textVPN" Content="$VPNText" HorizontalAlignment="Left" Margin="35,328,0,0" VerticalAlignment="Top" Width="429" Height="34" Foreground="$TextColor"/>
+        <Button x:Name="nobutton2" Content="$NoButtonText2" HorizontalAlignment="Left" Margin="383,430,0,0" VerticalAlignment="Top" Width="81"/>
+        <Label x:Name="CheckWindowText" Content="$CheckWindowText" HorizontalAlignment="Left" Margin="35,384,0,0" VerticalAlignment="Top" Width="343" Height="75" Foreground="$TextColor" FontSize="12"/>
+    </Grid>
+
+</Controls:MetroWindow>
+
+"@ 
+# Load Xaml Code 
+[void][System.Reflection.Assembly]::LoadWithPartialName('presentationframework')
+[xml]$XAML = $inputXML
+$reader=(New-Object System.Xml.XmlNodeReader $xaml)
+$Form2=[Windows.Markup.XamlReader]::Load( $reader )
+
+# GUI Objects
+#region
+$CheckWindowText = $Form2.Findname("CheckWindowText")
+$CheckWindowText2 = $Form2.Findname("CheckWindowText2")
+$ok1 = $Form2.Findname("ok1")
+$ok2 = $Form2.Findname("ok2")
+$ok3 = $Form2.Findname("ok3")
+$ok4 = $Form2.Findname("ok4")
+$x1 = $Form2.Findname("x1")
+$x2 = $Form2.Findname("x2")
+$x3 = $Form2.Findname("x3")
+$x4 = $Form2.Findname("x4")
+$textspace1 = $Form2.Findname("textspace1")
+$textspace = $Form2.Findname("textspace")
+$textbattery1 = $Form2.Findname("textbattery1")
+$textbattery = $Form2.Findname("textbattery")
+$textreboot1 = $Form2.Findname("textreboot1")
+$textreboot = $Form2.Findname("textreboot")
+$textVPN1 = $Form2.Findname("textVPN1")
+$textVPN = $Form2.Findname("textVPN")
+$nobutton2 = $Form2.Findname("nobutton2")
+#endregion
+
+# Actions
+#region
+$nobutton2.Add_Click({
+If (!(Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt)) {
+    New-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt  | Out-File $LogFile -Append
+    If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "CheckWindow" -Type Error}
+    Else {
+        $Info = "Created File $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Info
+        }
+    }
+Write-EventLog -LogName Application -Source Win10Inplace -EntryType Error -EventId 7 -Message "Requirements not met."
+$Info = "Requirements Not Met - Close Window"
+Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Warning
+$form2.close()
+[System.Environment]::Exit(99)
+
+})
+#endregion
+
+# Variable Text
+#region
+$ok1.Visibility = "Visible"
+$ok2.Visibility = "Visible"
+$ok3.Visibility = "Visible"
+$ok4.Visibility = "Visible"
+$X1.Visibility = "Hidden"
+$X2.Visibility = "Hidden"
+$X3.Visibility = "Hidden"
+$X4.Visibility = "Hidden"
+$textspace.Visibility = "Hidden"
+$textbattery.Visibility = "Hidden"
+$textreboot.Visibility = "Hidden"
+$textVPN.Visibility = "Hidden"
+
+$textspace1.Content = "$SpaceTextOK"
+$textbattery1.Content = "$PowerTextOK"
+$textreboot1.Content = "$RebootTextOK"
+$textVPN1.Content = "$VPNTextOK"
+
+If ($LowSpace -eq $true) {
+    $textspace.Visibility = "Visible"
+    $textspace1.Content = "$SpaceTextNotOK"
+    $X1.Visibility = "Visible"
+    $ok1.Visibility = "Hidden"
+    $Info = "Low Disk Space"
+    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Error
+    }
+If ($Battery -eq $true) {
+    $textbattery.Visibility = "Visible"
+    $textbattery1.Content = "$PowerTextNotOK"
+    $X2.Visibility = "Visible"
+    $ok2.Visibility = "Hidden"
+    $Info = "No Power Connected"
+    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Error
+    }
+If ($RebootRequired -eq $true) {
+    $textreboot.Visibility = "Visible"
+    $textreboot1.Content = "$RebootTextNotOK"
+    $X3.Visibility = "Visible"
+    $ok3.Visibility = "Hidden"
+    $Info = "Reboot Required"
+    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Error
+    }
+If ($VPN -eq $true) {
+    $textVPN.Visibility = "Visible"
+    $textVPN1.Content = "$VPNTextNotOK"
+    $X4.Visibility = "Visible"
+    $ok4.Visibility = "Hidden"
+    $Info = "VPN Connected"
+    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Error
+    }
+#endregion
+
+$Form2.ShowDialog() | out-null
+}
+
+### Xaml Code Other Time Form #######################################################
+Function OtherTime {
+[xml]$inputXML = @"
+<Controls:MetroWindow
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        GlowBrush="Black"
+        BorderThickness="0"
+        WindowStartupLocation="CenterScreen"
+        Title="$OtherTimeWindowTitle"
+        Height="220" 
+        Width="390" 
+        Background="$BackgroundColor" 
+        Topmost="True" 
+        ResizeMode="NoResize" 
+        ShowMinButton="False" 
+        ShowMaxRestoreButton="False" 
+        ShowCloseButton="False" 
+        WindowButtonCommandsOverlayBehavior="HiddenTitleBar">
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/$WindowThemeColor.xaml" />
+            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.FlatButton.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Button x:Name="timebutton_ok" Content="$OtherTimeOkButtonText" HorizontalAlignment="Left" Margin="97,150,0,0" VerticalAlignment="Top" Width="90"/>
+        <Button x:Name="timebutton_Cancel" Content="$OtherTimeCancelButtonText" HorizontalAlignment="Left" Margin="197,150,0,0" VerticalAlignment="Top" Width="90"/>
+        <DatePicker x:Name="dateTimePicker1" HorizontalAlignment="Left" Margin="190,70,0,0" VerticalAlignment="Top" SelectedDateFormat="Short" Width="164" SelectedDate="{Binding Path = SellStartDate, StringFormat = {}{0:dd-MM-yyyy}}" />
+        <Label x:Name="label1" Content="$OtherTimeText" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" FontSize="14" Foreground="$TextColor"/>
+        <ComboBox x:Name="hour" HorizontalAlignment="Left" Margin="40,70,0,0" VerticalAlignment="Top" Width="60"/>
+        <ComboBox x:Name="minute" HorizontalAlignment="Left" Margin="105,70,0,0" VerticalAlignment="Top" Width="60"/>
+    </Grid>
+
+</Controls:MetroWindow>
+"@ 
+# Load Xaml Code 
+[void][System.Reflection.Assembly]::LoadWithPartialName('presentationframework')
+[xml]$XAML = $inputXML
+$reader=(New-Object System.Xml.XmlNodeReader $xaml)
+$Form3=[Windows.Markup.XamlReader]::Load( $reader )
+
+# GUI Objects
+#region
+$timebutton_ok = $Form3.Findname("timebutton_ok")
+$timebutton_Cancel = $Form3.Findname("timebutton_Cancel")
+$dateTimePicker1 = $Form3.Findname("dateTimePicker1")
+$label1 = $Form3.Findname("label1")
+$hour = $Form3.Findname("hour")
+$minute = $Form3.Findname("minute")
+
+#endregion
+
+# Actions
+#region
+$timebutton_ok.Add_Click({
+$Scheduler = $True
+$SelectedDateTime = $datetimepicker1.Text + "_" + $hour.SelectedItem + $minute.SelectedItem
+$Time = [datetime]::ParseExact($SelectedDateTime,'dd.MM.yyyy_HHmm',$null)
+$SchedTaskDate = ($Time).tostring("yyyy-MM-dd")
+
+$Info = "User Chose Another Time -  Prepare Scheduled Task"
+Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+
+$Future = (New-TimeSpan -Start $Time -End $PickerMaxDate).TotalMinutes
+$Past = (New-TimeSpan -Start (Get-Date) -End $Time).TotalMinutes
+
+If ($Future -lt 0) {
+    [MahApps.Metro.Controls.Dialogs.DialogManager]::ShowModalMessageExternal($Form3,$Message2,$Message3,[MahApps.Metro.Controls.Dialogs.MessageDialogStyle]::Affirmative)
+    }
+Elseif ($Past -lt 0) {
+    [MahApps.Metro.Controls.Dialogs.DialogManager]::ShowModalMessageExternal($Form3,$Message2,$Message4,[MahApps.Metro.Controls.Dialogs.MessageDialogStyle]::Affirmative)
+    }
+Else {
+
+If ($OSBuild -eq 7601) {
+$OldTask = Get-ScheduledJob -Name "Windows 10 Inplace Update"
+If ($OldTask) {
+    Unregister-ScheduledJob -InputObject $OldTask -ErrorVariable ErrorAction
+    If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+    Else {
+        $Info = "Unregistered Old Scheduled Task"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+        }
+    }
+    Else {
+        $Info = "No Old Scheduled Task found"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
         }
 
-If ($BGorCOLOR -eq "Color") {$form1.BackColor = [System.Drawing.Color]::$BackgroundColor}
-If ($BGorCOLOR -eq "BG") {$form1.BackgroundImage = [System.Drawing.Image]::FromFile("$BGPath")}
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 580
-$System_Drawing_Size.Width = 980
-$form1.MaximumSize = $System_Drawing_Size
-$form1.MinimumSize = $System_Drawing_Size
-$form1.ClientSize = $System_Drawing_Size
-$form1.ControlBox = $False
-$form1.DataBindings.DefaultDataSourceUpdateMode = 0
-$form1.Name = "form1"
-$form1.ShowIcon = $False
-$form1.Text = "$WindowTitle"
-$form1.StartPosition = 1
+$Info = "Register New Scheduled Task"
+Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
 
-$TimeRemaining_Label.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$TimeRemaining_Label.DataBindings.DefaultDataSourceUpdateMode = 0
-$TimeRemaining_Label.Font = New-Object System.Drawing.Font("Calibri",12,1,3,0)
-$TimeRemaining_Label.ForeColor = "Red"
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 220
-$System_Drawing_Point.Y = 450
-$TimeRemaining_Label.Location = $System_Drawing_Point
-$TimeRemaining_Label.Name = "TimerText"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 300
-$TimeRemaining_Label.Size = $System_Drawing_Size
-$TimeRemaining_Label.TabIndex = 6
-$TimeRemaining_Label.Text = "$CountdownText"
-$form1.Controls.Add($TimeRemaining_Label)
-
-$Countdown_Label.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$Countdown_Label.DataBindings.DefaultDataSourceUpdateMode = 0
-$Countdown_Label.Font = New-Object System.Drawing.Font("Calibri",12,1,3,0)
-$Countdown_Label.ForeColor = "Red"
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 313
-$System_Drawing_Point.Y = 470
-$Countdown_Label.Location = $System_Drawing_Point
-$Countdown_Label.Name = "Timer"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 100
-$Countdown_Label.Size = $System_Drawing_Size
-$Countdown_Label.TabIndex = 7
-$Countdown_Label.Text = "00:00:00"
-$form1.Controls.Add($Countdown_Label)
-
-$timelefttext.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$timelefttext.DataBindings.DefaultDataSourceUpdateMode = 0
-$timelefttext.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$timelefttext.Font = New-Object System.Drawing.Font("Calibri",11.25,0,3,0)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 545
-$System_Drawing_Point.Y = 505
-$timelefttext.Location = $System_Drawing_Point
-$timelefttext.Name = "timelefttext"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 127
-$timelefttext.Size = $System_Drawing_Size
-$timelefttext.TabIndex = 5
-If ($RemainingDays -gt 1) {$timelefttext.Text = "$RemainingDays $RemainText1"}
-    Elseif ($RemainingDays -eq 1) {$timelefttext.Text = "$RemainText2"}
-    Elseif ($RemainingDays -le 0) {$timelefttext.Text = "$RemainText3"}
-$form1.Controls.Add($timelefttext)
-
-$text.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$text.DataBindings.DefaultDataSourceUpdateMode = 0
-$text.Font = New-Object System.Drawing.Font("Calibri",11.25,0,3,0)
-$text.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 15
-$System_Drawing_Point.Y = 161
-$text.Location = $System_Drawing_Point
-$text.Name = "text"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 286
-$System_Drawing_Size.Width = 429
-$text.Size = $System_Drawing_Size
-$text.TabIndex = 4
-$text.Text = $InplaceText
-$form1.Controls.Add($text)
-
-$nobutton.DataBindings.DefaultDataSourceUpdateMode = 0
-$nobutton.FlatStyle = 0
-$nobutton.ForeColor = [System.Drawing.Color]::$ButtonForeColor
-$nobutton.BackColor = [System.Drawing.Color]::$ButtonBackColor
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 467
-$System_Drawing_Point.Y = 500
-$nobutton.Location = $System_Drawing_Point
-$nobutton.Name = "nobutton"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 75
-$nobutton.Size = $System_Drawing_Size
-$nobutton.TabIndex = 3
-$nobutton.Text = "$NoButtonText"
-$nobutton.UseVisualStyleBackColor = $true
-$nobutton.add_Click($handler_nobutton_Click)
-If ($RemainingDays -eq 0) {$nobutton.Enabled = $false}
-$form1.Controls.Add($nobutton)
-
-$okbutton.DataBindings.DefaultDataSourceUpdateMode = 0
-$okbutton.FlatStyle = 0
-$okbutton.ForeColor = [System.Drawing.Color]::$ButtonForeColor
-$okbutton.BackColor = [System.Drawing.Color]::$ButtonBackColor
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 245
-$System_Drawing_Point.Y = 500
-$okbutton.Location = $System_Drawing_Point
-$okbutton.Name = "okbutton"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 106
-$okbutton.Size = $System_Drawing_Size
-$okbutton.TabIndex = 1
-$okbutton.Text = "$OkButtonText"
-$okbutton.UseVisualStyleBackColor = $true
-$okbutton.add_Click($okbutton_OnClick)
-$form1.Controls.Add($okbutton)
-
-$othertimebutton.DataBindings.DefaultDataSourceUpdateMode = 0
-$othertimebutton.FlatStyle = 0
-$othertimebutton.ForeColor = [System.Drawing.Color]::$ButtonForeColor
-$othertimebutton.BackColor = [System.Drawing.Color]::$ButtonBackColor
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 357
-$System_Drawing_Point.Y = 500
-$othertimebutton.Location = $System_Drawing_Point
-$othertimebutton.Name = "othertimebutton"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 103
-$othertimebutton.Size = $System_Drawing_Size
-$othertimebutton.TabIndex = 2
-$othertimebutton.Text = "$OtherTimeButtonText"
-$othertimebutton.UseVisualStyleBackColor = $true
-$othertimebutton.add_Click($othertimebutton_OnClick)
-$form1.Controls.Add($othertimebutton)
-
-$logo.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$logo.DataBindings.DefaultDataSourceUpdateMode = 0
-$logo.Image = [System.Drawing.Image]::FromFile("$LogoPath")
-$logo.ImageLocation = ""
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 15
-$System_Drawing_Point.Y = 10
-$logo.Location = $System_Drawing_Point
-$logo.Name = "logo"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 126
-$System_Drawing_Size.Width = 400
-$logo.Size = $System_Drawing_Size
-$logo.TabIndex = 1
-$logo.TabStop = $False
-
-If ($WindowsLogoActive -eq "true") {
-    $windowslogo.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-    $windowslogo.DataBindings.DefaultDataSourceUpdateMode = 0
-    $windowslogo.Image = [System.Drawing.Image]::FromFile("$WindowsLogoPath")
-    $windowslogo.ImageLocation = ""
-    $System_Drawing_Point = New-Object System.Drawing.Point
-    $System_Drawing_Point.X = 600
-    $System_Drawing_Point.Y = 161
-    $windowslogo.Location = $System_Drawing_Point
-    $windowslogo.Name = "logo"
-    $System_Drawing_Size = New-Object System.Drawing.Size
-    $System_Drawing_Size.Height = 280
-    $System_Drawing_Size.Width = 280
-    $windowslogo.Size = $System_Drawing_Size
-    $windowslogo.TabIndex = 1
-    $windowslogo.TabStop = $False
-    $form1.Controls.Add($windowslogo)
+$Trigger = New-JobTrigger -Once -At $Time
+Register-ScheduledJob –Name "Windows 10 Inplace Update" -Trigger $trigger -FilePath "$WorkFolder\SchedTaskRun.ps1" -ArgumentList "-WindowStyle Hidden -NoProfile -ExecutionPolicy ByPass" -ErrorVariable ErrorAction
+If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+Else {
+    $Info = "Registered Scheduled Task on $Time"
+    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+    New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name SchedTaskDate -Value $SchedTaskDate -ErrorVariable ErrorAction -Force
+    If ($ErrorAction) {Write-Log -Path $InitialLog -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+    Else {
+        $Info = "Created Registry Value SchedTaskDate: $SchedTaskDate"
+        Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+        }
     }
+}
 
-$titel.DataBindings.DefaultDataSourceUpdateMode = 0
-$titel.Font = New-Object System.Drawing.Font("Calibri",16,0,3,0)
-$titel.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 12
-$System_Drawing_Point.Y = 9
-$titel.Location = $System_Drawing_Point
-$titel.Name = "titel"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 39
-$System_Drawing_Size.Width = 216
-$titel.Size = $System_Drawing_Size
-$titel.TabIndex = 0
-$titel.Text = "$InplaceTitle"
+If ($OSBuild -gt 7601) {
+$Action = New-ScheduledTaskAction -Execute '"C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"' -Argument "-WindowStyle Hidden -NoProfile -ExecutionPolicy ByPass -File $WorkFolder\CallTS.ps1"
+$Principal = New-ScheduledTaskPrincipal -UserId (Get-CimInstance –ClassName Win32_ComputerSystem | Select-Object -expand UserName)
+$Trigger =  New-ScheduledTaskTrigger -Once -At $Time
 
-If ($Header -eq "Title") {$form1.Controls.Add($titel)}
-Elseif ($Header -eq "Logo") {$form1.Controls.Add($logo)}
-Else {$form1.Controls.Add($titel)}
+$OldTask = Get-ScheduledTask -TaskName "Windows 10 Inplace Update"
+If ($OldTask) {
+    Unregister-ScheduledTask -TaskName "Windows 10 Inplace Update" -ErrorVariable ErrorAction -Confirm:$false
+    If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+    Else {
+        $Info = "Unregistered Old Scheduled Task"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+        }
+    }
+    Else {
+        $Info = "No Old Scheduled Task Found"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+        }
+
+$Info = "Register New Scheduled Task"
+Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+
+Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName "Windows 10 Inplace Update" -Principal $Principal -ErrorVariable ErrorAction
+If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+Else {
+    $Info = "Registered Scheduled Task on $Time"
+    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+    New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name SchedTaskDate -Value $SchedTaskDate -ErrorVariable ErrorAction -Force
+    If ($ErrorAction) {Write-Log -Path $InitialLog -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+    Else {
+        $Info = "Created Registry Value SchedTaskDate: $SchedTaskDate"
+        Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+        }
+    }
+}
+Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 9 -Message "User deferred Update to $Time."
+$Info = "Close Window."
+Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "End" -Type Info
+$form3.Close()
+$form1.Close()
+[System.Environment]::Exit(99)
+}
+})
+
+$timebutton_Cancel.Add_Click({
+    $form3.close()
+})
+#endregion
+
+# Variable Text
+#region
+$PreselectedHour = ((Get-Date).AddHours(1)).Hour
+$PreselectedMinute = (Get-Date).Minute
+$houritems = @("00","01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20","21","22","23")
+$minuteitems = @("00","15","30","45")
+Foreach ($Item in $houritems) {$hour.Items.Add("$Item")}
+Foreach ($Item in $minuteitems) {$minute.Items.Add("$Item")}
+$hour.SelectedIndex = $hour.items.IndexOf("$PreselectedHour")
+$minute.SelectedIndex = $minute.items.IndexOf("00")
+
+Try {$PickerMaxDate = [datetime]::ParseExact($TargetDate,'dd.MM.yyyy HH:mm:ss',$null)}
+    Catch {$PickerMaxDate = $TargetDate}
+$dateTimePicker1.DisplayDateStart="$Today" 
+$dateTimePicker1.DisplayDateEnd="$PickerMaxDate"
+$dateTimePicker1.DisplayDate = ($Today).AddDays(1)
+$dateTimePicker1.SelectedDate = ($Today).AddDays(1)
 
 
-$InitialFormWindowState = $form1.WindowState
+#endregion
 
-$form1.add_Load($OnLoadForm_StateCorrection)
-
-$form1.ShowDialog()| Out-Null
-
+$Form3.ShowDialog() | out-null
 }
 
 ### Function To Check Disk Space ####################################################
 Function CheckDiskSpace {
 $global:LowSpace = $false
 $FreeSpace = (gwmi win32_logicaldisk -filter "DeviceID='c:'").Freespace/1GB
-If ($FreeSpace -lt 10) {
+If ($FreeSpace -lt $MinFreeSpace) {
     $global:LowSpace = $true
     $global:CheckError = $true
     }
@@ -632,545 +935,15 @@ Foreach ($VPNIP in $VPNAdresses) {
     }
 }
 
-### Check Window ####################################################################
-Function ShowMessage {
-
-[reflection.assembly]::loadwithpartialname("System.Drawing") | Out-Null
-[reflection.assembly]::loadwithpartialname("System.Windows.Forms") | Out-Null
-
-$form2 = New-Object System.Windows.Forms.Form
-$label7 = New-Object System.Windows.Forms.Label
-$textreboot = New-Object System.Windows.Forms.Label
-$textVPN = New-Object System.Windows.Forms.Label
-$textbattery = New-Object System.Windows.Forms.Label
-$textspace = New-Object System.Windows.Forms.Label
-$textreboot1 = New-Object System.Windows.Forms.Label
-$textbattery1 = New-Object System.Windows.Forms.Label
-$textVPN1 = New-Object System.Windows.Forms.Label
-$textspace1 = New-Object System.Windows.Forms.Label
-$nobutton2 = New-Object System.Windows.Forms.Button
-$text2 = New-Object System.Windows.Forms.Label
-$InitialFormWindowState = New-Object System.Windows.Forms.FormWindowState
-$X4 = New-Object System.Windows.Forms.Label
-$X3 = New-Object System.Windows.Forms.Label
-$X2 = New-Object System.Windows.Forms.Label
-$X1 = New-Object System.Windows.Forms.Label
-$ok4 = New-Object System.Windows.Forms.Label
-$ok3 = New-Object System.Windows.Forms.Label
-$ok2 = New-Object System.Windows.Forms.Label
-$ok1 = New-Object System.Windows.Forms.Label
-
-$nobutton2_OnClick= 
-{
-If (!(Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt)) {
-    New-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt  | Out-File $LogFile -Append
-    If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "CheckWindow" -Type Error}
-    Else {
-        $Info = "Created File $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt"
-        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Info
-        }
-    }
-Write-EventLog -LogName Application -Source Win10Inplace -EntryType Error -EventId 7 -Message "Requirements not met."
-$Info = "Requirements Not Met - Close Window"
-Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Warning
-$form2.close()
-[System.Environment]::Exit(99)
-}
-
-$OnLoadForm_StateCorrection=
-{
-	$form2.WindowState = $InitialFormWindowState
-}
-
-$form2.BackColor = [System.Drawing.Color]::FromArgb(255,0,153,204)
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 500
-$System_Drawing_Size.Width = 500
-$form2.MaximumSize = $System_Drawing_Size
-$form2.MinimumSize = $System_Drawing_Size
-$form2.ClientSize = $System_Drawing_Size
-$form2.ControlBox = $False
-$form2.DataBindings.DefaultDataSourceUpdateMode = 0
-$form2.Name = "form2"
-$form2.ShowIcon = $False
-$form2.Text = "$CheckWindowTitle"
-$form2.StartPosition = 1
-
-$X4.DataBindings.DefaultDataSourceUpdateMode = 0
-$X4.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",15.75,1,3,0)
-$X4.ForeColor = [System.Drawing.Color]::FromArgb(255,255,0,0)
-$X4.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 5
-$System_Drawing_Point.Y = 230
-$X4.Location = $System_Drawing_Point
-$X4.Name = "X4"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 22
-$System_Drawing_Size.Width = 22
-$X4.Size = $System_Drawing_Size
-$X4.TabIndex = 18
-$X4.Text = "X"
-$x4.Visible = $false
-$form2.Controls.Add($X4)
-
-$X3.DataBindings.DefaultDataSourceUpdateMode = 0
-$X3.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",15.75,1,3,0)
-$X3.ForeColor = [System.Drawing.Color]::FromArgb(255,255,0,0)
-$X3.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 5
-$System_Drawing_Point.Y = 181
-$X3.Location = $System_Drawing_Point
-$X3.Name = "X3"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 22
-$System_Drawing_Size.Width = 22
-$X3.Size = $System_Drawing_Size
-$X3.TabIndex = 18
-$X3.Text = "X"
-$x3.Visible = $false
-$form2.Controls.Add($X3)
-
-$X2.DataBindings.DefaultDataSourceUpdateMode = 0
-$X2.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",15.75,1,3,0)
-$X2.ForeColor = [System.Drawing.Color]::FromArgb(255,255,0,0)
-$X2.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 5
-$System_Drawing_Point.Y = 135
-$X2.Location = $System_Drawing_Point
-$X2.Name = "X2"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 22
-$System_Drawing_Size.Width = 22
-$X2.Size = $System_Drawing_Size
-$X2.TabIndex = 17
-$X2.Text = "X"
-$x2.Visible = $false
-$form2.Controls.Add($X2)
-
-$X1.DataBindings.DefaultDataSourceUpdateMode = 0
-$X1.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",15.75,1,3,0)
-$X1.ForeColor = [System.Drawing.Color]::FromArgb(255,255,0,0)
-$X1.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 5
-$System_Drawing_Point.Y = 70
-$X1.Location = $System_Drawing_Point
-$X1.Name = "X1"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 22
-$System_Drawing_Size.Width = 22
-$X1.Size = $System_Drawing_Size
-$X1.TabIndex = 16
-$X1.Text = "X"
-$x1.Visible = $false
-$form2.Controls.Add($X1)
-
-$ok4.DataBindings.DefaultDataSourceUpdateMode = 0
-$ok4.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",15.75,1,3,0)
-$ok4.ForeColor = [System.Drawing.Color]::FromArgb(255,0,255,0)
-$ok4.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 5
-$System_Drawing_Point.Y = 230
-$ok4.Location = $System_Drawing_Point
-$ok4.Name = "ok4"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 22
-$System_Drawing_Size.Width = 22
-$ok4.Size = $System_Drawing_Size
-$ok4.TabIndex = 15
-$ok4.Text = "√"
-$form2.Controls.Add($ok4)
-
-$ok3.DataBindings.DefaultDataSourceUpdateMode = 0
-$ok3.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",15.75,1,3,0)
-$ok3.ForeColor = [System.Drawing.Color]::FromArgb(255,0,255,0)
-$ok3.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 5
-$System_Drawing_Point.Y = 181
-$ok3.Location = $System_Drawing_Point
-$ok3.Name = "ok3"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 22
-$System_Drawing_Size.Width = 22
-$ok3.Size = $System_Drawing_Size
-$ok3.TabIndex = 15
-$ok3.Text = "√"
-$form2.Controls.Add($ok3)
-
-$ok2.DataBindings.DefaultDataSourceUpdateMode = 0
-$ok2.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",15.75,1,3,0)
-$ok2.ForeColor = [System.Drawing.Color]::FromArgb(255,0,255,0)
-$ok2.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 5
-$System_Drawing_Point.Y = 135
-$ok2.Location = $System_Drawing_Point
-$ok2.Name = "ok2"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 22
-$System_Drawing_Size.Width = 22
-$ok2.Size = $System_Drawing_Size
-$ok2.TabIndex = 14
-$ok2.Text = "√"
-$form2.Controls.Add($ok2)
-
-$ok1.DataBindings.DefaultDataSourceUpdateMode = 0
-$ok1.Font = New-Object System.Drawing.Font("Microsoft Sans Serif",15.75,1,3,0)
-$ok1.ForeColor = [System.Drawing.Color]::FromArgb(255,0,255,0)
-$ok1.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 5
-$System_Drawing_Point.Y = 70
-$ok1.Location = $System_Drawing_Point
-$ok1.Name = "ok1"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 22
-$System_Drawing_Size.Width = 22
-$ok1.Size = $System_Drawing_Size
-$ok1.TabIndex = 13
-$ok1.Text = "√"
-$form2.Controls.Add($ok1)
-
-$label7.DataBindings.DefaultDataSourceUpdateMode = 0
-$label7.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$label7.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$label7.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 91
-$System_Drawing_Point.Y = 355
-$label7.Location = $System_Drawing_Point
-$label7.Name = "label7"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 60
-$System_Drawing_Size.Width = 284
-$label7.Size = $System_Drawing_Size
-$label7.TabIndex = 19
-$label7.Text = "$CheckText"
-$form2.Controls.Add($label7)
-
-$textreboot.DataBindings.DefaultDataSourceUpdateMode = 0
-$textreboot.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$textreboot.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$textreboot.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 38
-$System_Drawing_Point.Y = 209
-$textreboot.Location = $System_Drawing_Point
-$textreboot.Name = "textreboot"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 345
-$textreboot.Size = $System_Drawing_Size
-$textreboot.TabIndex = 12
-$textreboot.Text = "$RebootText"
-$textreboot.Visible = $false
-$form2.Controls.Add($textreboot)
-
-$textVPN.DataBindings.DefaultDataSourceUpdateMode = 0
-$textVPN.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$textVPN.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$textVPN.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 38
-$System_Drawing_Point.Y = 260
-$textVPN.Location = $System_Drawing_Point
-$textVPN.Name = "textVPN"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 33
-$System_Drawing_Size.Width = 345
-$textVPN.Size = $System_Drawing_Size
-$textVPN.TabIndex = 12
-$textVPN.Text = "$VPNText"
-$textVPN.Visible = $false
-$form2.Controls.Add($textVPN)
-
-$textbattery.DataBindings.DefaultDataSourceUpdateMode = 0
-$textbattery.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$textbattery.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$textbattery.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 38
-$System_Drawing_Point.Y = 163
-$textbattery.Location = $System_Drawing_Point
-$textbattery.Name = "textbattery"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 311
-$textbattery.Size = $System_Drawing_Size
-$textbattery.TabIndex = 11
-$textbattery.Text = "$PowerText"
-$textbattery.Visible = $false
-$form2.Controls.Add($textbattery)
-
-$textspace.DataBindings.DefaultDataSourceUpdateMode = 0
-$textspace.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$textspace.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$textspace.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 38
-$System_Drawing_Point.Y = 98
-$textspace.Location = $System_Drawing_Point
-$textspace.Name = "textspace"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 33
-$System_Drawing_Size.Width = 311
-$textspace.Size = $System_Drawing_Size
-$textspace.TabIndex = 10
-$textspace.Text = "$SpaceText"
-$textspace.Visible = $false
-$form2.Controls.Add($textspace)
-
-$textreboot1.DataBindings.DefaultDataSourceUpdateMode = 0
-$textreboot1.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$textreboot1.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$textreboot1.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 38
-$System_Drawing_Point.Y = 186
-$textreboot1.Location = $System_Drawing_Point
-$textreboot1.Name = "textreboot1"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 169
-$textreboot1.Size = $System_Drawing_Size
-$textreboot1.TabIndex = 9
-$form2.Controls.Add($textreboot1)
-
-$textVPN1.DataBindings.DefaultDataSourceUpdateMode = 0
-$textVPN1.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$textVPN1.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$textVPN1.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 38
-$System_Drawing_Point.Y = 235
-$textVPN1.Location = $System_Drawing_Point
-$textVPN1.Name = "textVPN1"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 220
-$textVPN1.Size = $System_Drawing_Size
-$textVPN1.TabIndex = 9
-$form2.Controls.Add($textVPN1)
-
-$textbattery1.DataBindings.DefaultDataSourceUpdateMode = 0
-$textbattery1.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$textbattery1.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$textbattery1.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 38
-$System_Drawing_Point.Y = 140
-$textbattery1.Location = $System_Drawing_Point
-$textbattery1.Name = "textbattery1"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 192
-$textbattery1.Size = $System_Drawing_Size
-$textbattery1.TabIndex = 8
-$form2.Controls.Add($textbattery1)
-
-$textspace1.DataBindings.DefaultDataSourceUpdateMode = 0
-$textspace1.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$textspace1.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$textspace1.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 38
-$System_Drawing_Point.Y = 74
-$textspace1.Location = $System_Drawing_Point
-$textspace1.Name = "textspace1"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 300
-$textspace1.Size = $System_Drawing_Size
-$textspace1.TabIndex = 7
-$form2.Controls.Add($textspace1)
-
-$nobutton2.DataBindings.DefaultDataSourceUpdateMode = 0
-$nobutton2.FlatStyle = 0
-$nobutton2.ForeColor = [System.Drawing.Color]::$ButtonForeColor
-$nobutton2.BackColor = [System.Drawing.Color]::$ButtonBackColor
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 407
-$System_Drawing_Point.Y = 420
-$nobutton2.Location = $System_Drawing_Point
-$nobutton2.Name = "nobutton2"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 75
-$nobutton2.Size = $System_Drawing_Size
-$nobutton2.TabIndex = 3
-$nobutton2.Text = "$NoButtonText2"
-$nobutton2.UseVisualStyleBackColor = $true
-$nobutton2.add_Click($nobutton2_OnClick)
-$form2.Controls.Add($nobutton2)
-
-$text2.DataBindings.DefaultDataSourceUpdateMode = 0
-$text2.Font = New-Object System.Drawing.Font("Calibri",9.75,0,3,0)
-$text2.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$text2.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 13
-$System_Drawing_Point.Y = 13
-$text2.Location = $System_Drawing_Point
-$text2.Name = "text2"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 61
-$System_Drawing_Size.Width = 247
-$text2.Size = $System_Drawing_Size
-$text2.TabIndex = 0
-$text2.Text = "$CheckWindowText2"
-
-$form2.Controls.Add($text2)
-
-$ok1.Visible = $true
-$ok2.Visible = $true
-$ok3.Visible = $true
-$ok4.Visible = $true
-
-$textspace1.Text = "$SpaceTextOK"
-$textbattery1.Text = "$PowerTextOK"
-$textreboot1.Text = "$RebootTextOK"
-$textVPN1.Text = "$VPNTextOK"
-
-If ($LowSpace -eq $true) {
-    $textspace.Visible = $true
-    $textspace1.Text = "$SpaceTextNotOK"
-    $textspace.Font = New-Object System.Drawing.Font("Calibri",10,1,3,0)
-    $textspace1.Font = New-Object System.Drawing.Font("Calibri",10,1,3,0)
-    $X1.Visible = $true
-    $ok1.Visible = $false
-    $Info = "Low Disk Space"
-    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Error
-    }
-If ($Battery -eq $true) {
-    $textbattery.Visible = $true
-    $textbattery1.Text = "$PowerTextNotOK"
-    $textbattery.Font = New-Object System.Drawing.Font("Calibri",10,1,3,0)
-    $textbattery1.Font = New-Object System.Drawing.Font("Calibri",10,1,3,0)
-    $X2.Visible = $true
-    $ok2.Visible = $false
-    $Info = "No Power Connected"
-    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Error
-    }
-If ($RebootRequired -eq $true) {
-    $textreboot.Visible = $true
-    $textreboot1.Text = "$RebootTextNotOK"
-    $textreboot.Font = New-Object System.Drawing.Font("Calibri",10,1,3,0)
-    $textreboot1.Font = New-Object System.Drawing.Font("Calibri",10,1,3,0)
-    $X3.Visible = $true
-    $ok3.Visible = $false
-    $Info = "Reboot Required"
-    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Error
-    }
-If ($VPN -eq $true) {
-    $textVPN.Visible = $true
-    $textVPN1.Text = "$VPNTextNotOK"
-    $textVPN.Font = New-Object System.Drawing.Font("Calibri",10,1,3,0)
-    $textVPN1.Font = New-Object System.Drawing.Font("Calibri",10,1,3,0)
-    $X4.Visible = $true
-    $ok4.Visible = $false
-    $Info = "VPN Connected"
-    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "CheckWindow" -Type Error
-    }
-
-$InitialFormWindowState = $form2.WindowState
-$form2.add_Load($OnLoadForm_StateCorrection)
-$form2.ShowDialog()| Out-Null
-
-}
-
-### Countdown #######################################################################
-Function CountDown {
-    [TimeSpan]$span = $script:StartTime - (Get-Date)
-    "{0:hh}:{0:mm}:{0:ss}" -f $span
-    $Countdown_Label.Text = "{0:hh}:{0:mm}:{0:ss}" -f $span
-	If ($span.TotalSeconds -like "0*") {
-        $timer.Stop()
-        If (Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt) {
-            Remove-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt -ErrorVariable ErrorAction -Force
-            If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "CheckWindow" -Type Error}
-            Else {
-                $Info = "Removed File $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt"
-                Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
-                }
-            }
-        Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 8 -Message "$InplaceVersionText started after countdown"
-        $Info = "$InplaceVersionText started after countdown"
-        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Warning
-        $form1.Close()
-	}
-}
-
-### Time Picker Window ##############################################################
-Function OtherTime {
-
-[reflection.assembly]::loadwithpartialname("System.Windows.Forms") | Out-Null
-[reflection.assembly]::loadwithpartialname("System.Drawing") | Out-Null
-
-$form3 = New-Object System.Windows.Forms.Form
-$label1 = New-Object System.Windows.Forms.Label
-$timebutton_Cancel = New-Object System.Windows.Forms.Button
-$timebutton_ok = New-Object System.Windows.Forms.Button
-$timecombobox = New-Object System.Windows.Forms.ComboBox
-$InitialFormWindowState = New-Object System.Windows.Forms.FormWindowState
-
-$timebutton_Cancel_OnClick= 
-{
-$form3.close()
-
-}
-
-$timebutton_ok_OnClick= 
-{
-$Scheduler = $True
-
-If ($timecombobox.SelectedItem -like "*1*") {$Hours = 1}
-Elseif ($timecombobox.SelectedItem -like "*2*") {$Hours = 2}
-Elseif ($timecombobox.SelectedItem -like "*3*") {$Hours = 3}
-Elseif ($timecombobox.SelectedItem -like "*4*") {$Hours = 4}
-Elseif ($timecombobox.SelectedItem -like "*5*") {$Hours = 5}
-Elseif ($timecombobox.SelectedItem -like "*6*") {$Hours = 6}
-
-$Time = (Get-Date).AddHours($Hours).ToString("HH:mm")
-
-$Info = "User Chose Another Time -  Prepare Scheduled Task"
+### Timer For Nex Run ###############################################################
+Function NextRunTimer {
+$Info = "User Chose Later -  Prepare Scheduled Task"
 Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
-
-If ($OSBuild -eq 7601) {
-$OldTask = Get-ScheduledJob -Name "Windows 10 Inplace Update"
-If ($OldTask) {
-    Unregister-ScheduledJob -InputObject $OldTask -ErrorVariable ErrorAction
-    If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
-    Else {
-        $Info = "Unregistered Old Scheduled Task"
-        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
-        }
-    }
-    Else {
-        $Info = "No Old Scheduled Task found"
-        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
-        }
-
-$Info = "Register New Scheduled Task"
-Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
-
-$Trigger = New-JobTrigger -Once -At $Time
-Register-ScheduledJob –Name "Office 2013 Update" -Trigger $trigger -FilePath "$WorkFolder\SchedTaskRun.ps1" -ArgumentList "-WindowStyle Hidden -NoProfile -ExecutionPolicy ByPass" -ErrorVariable ErrorAction
-If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
-Else {
-    $Info = "Registered Scheduled Task"
-    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
-    }
-}
-
-If ($OSBuild -gt 7601) {
-$Action = New-ScheduledTaskAction -Execute '"C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"' -Argument "-WindowStyle Hidden -NoProfile -ExecutionPolicy ByPass -File $WorkFolder\SchedTaskRun.ps1"
-$Principal = New-ScheduledTaskPrincipal -GroupId "NT Authority\System" -RunLevel Highest
-$Trigger =  New-ScheduledTaskTrigger -Once -At $Time
+$NextRunTimer = (Get-Date).AddDays(1)
+$SchedTaskDate = ($NextRunTimer).tostring("yyyy-MM-dd")
+$Action = New-ScheduledTaskAction -Execute '"C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"' -Argument "-WindowStyle Hidden -NoProfile -ExecutionPolicy ByPass -File $WorkFolder\CallTS.ps1"
+$Principal = New-ScheduledTaskPrincipal -UserId (Get-CimInstance –ClassName Win32_ComputerSystem | Select-Object -expand UserName)
+$Trigger =  New-ScheduledTaskTrigger -Once -At $NextRunTimer
 
 $OldTask = Get-ScheduledTask -TaskName "Windows 10 Inplace Update"
 If ($OldTask) {
@@ -1192,194 +965,49 @@ Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -T
 Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskName "Windows 10 Inplace Update" -Principal $Principal -ErrorVariable ErrorAction
 If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
 Else {
-    $Info = "Registered Scheduled Task"
+    $Info = "Registered Scheduled Task on $NextRunTimer"
     Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+    New-ItemProperty -Path HKLM:\SOFTWARE\$CompanyCode\WindowsInplaceUpdate -Name SchedTaskDate -Value $SchedTaskDate -ErrorVariable ErrorAction -Force
+    If ($ErrorAction) {Write-Log -Path $InitialLog -Message ($ErrorAction | Out-String) -Component "SchedTask" -Type Error}
+    Else {
+        $Info = "Created Registry Value SchedTaskDate: $SchedTaskDate"
+        Write-Log -Path $InitialLog -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+        }
     }
-}
-Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 9 -Message "User deferred Update for $Hours Hours."
-$Info = "User deferred Update for $Hours Hours - Close Window"
-Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTask" -Type Info
+
+Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 9 -Message "User selected later."
+$Info = "Close Window."
+Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "End" -Type Info
 $form3.Close()
 $form1.Close()
-[System.Environment]::Exit(99)
 }
 
-$OnLoadForm_StateCorrection=
-{
-	$form3.WindowState = $InitialFormWindowState
-}
-
-
-$form3.BackColor = [System.Drawing.Color]::FromArgb(255,0,153,204)
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 220
-$System_Drawing_Size.Width = 390
-$form3.MaximumSize = $System_Drawing_Size
-$form3.MinimumSize = $System_Drawing_Size
-$form3.ClientSize = $System_Drawing_Size
-$form3.DataBindings.DefaultDataSourceUpdateMode = 0
-$form3.Name = "form1"
-$form3.ShowIcon = $False
-$form3.Text = "$OtherTimeWindowTitle"
-$form3.StartPosition = 1
-
-
-$label1.BackColor = [System.Drawing.Color]::FromArgb(0,255,255,255)
-$label1.DataBindings.DefaultDataSourceUpdateMode = 0
-$label1.Font = New-Object System.Drawing.Font("Calibri",10,0,3,0)
-$label1.ForeColor = [System.Drawing.Color]::FromArgb(255,255,255,255)
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 13
-$System_Drawing_Point.Y = 13
-$label1.Location = $System_Drawing_Point
-$label1.Name = "label1"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 40
-$System_Drawing_Size.Width = 300
-$label1.Size = $System_Drawing_Size
-$label1.TabIndex = 3
-$label1.Text = "$OtherTimeText"
-$form3.Controls.Add($label1)
-
-
-$timebutton_Cancel.DataBindings.DefaultDataSourceUpdateMode = 0
-$timebutton_Cancel.FlatStyle = 0
-$timebutton_Cancel.ForeColor = [System.Drawing.Color]::$ButtonForeColor
-$timebutton_Cancel.BackColor = [System.Drawing.Color]::$ButtonBackColor
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 287
-$System_Drawing_Point.Y = 146
-$timebutton_Cancel.Location = $System_Drawing_Point
-$timebutton_Cancel.Name = "timebutton_Cancel"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 75
-$timebutton_Cancel.Size = $System_Drawing_Size
-$timebutton_Cancel.TabIndex = 2
-$timebutton_Cancel.Text = "$OtherTimeCancelButtonText"
-$timebutton_Cancel.UseVisualStyleBackColor = $true
-$timebutton_Cancel.add_Click($timebutton_Cancel_OnClick)
-$form3.Controls.Add($timebutton_Cancel)
-
-
-$timebutton_ok.DataBindings.DefaultDataSourceUpdateMode = 0
-$timebutton_ok.FlatStyle = 0
-$timebutton_ok.ForeColor = [System.Drawing.Color]::$ButtonForeColor
-$timebutton_ok.BackColor = [System.Drawing.Color]::$ButtonBackColor
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 13
-$System_Drawing_Point.Y = 146
-$timebutton_ok.Location = $System_Drawing_Point
-$timebutton_ok.Name = "timebutton_ok"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 23
-$System_Drawing_Size.Width = 75
-$timebutton_ok.Size = $System_Drawing_Size
-$timebutton_ok.TabIndex = 1
-$timebutton_ok.Text = "$OtherTimeOkButtonText"
-$timebutton_ok.UseVisualStyleBackColor = $true
-$timebutton_ok.add_Click($timebutton_ok_OnClick)
-$form3.Controls.Add($timebutton_ok)
-
-$timecombobox.DataBindings.DefaultDataSourceUpdateMode = 0
-$timecombobox.FormattingEnabled = $True
-$timecombobox.Items.Add("In 1 $OtherTimeComboText1")|Out-Null
-$timecombobox.Items.Add("In 2 $OtherTimeComboText2")|Out-Null
-$timecombobox.Items.Add("In 3 $OtherTimeComboText2")|Out-Null
-$timecombobox.Items.Add("In 4 $OtherTimeComboText2")|Out-Null
-$timecombobox.Items.Add("In 5 $OtherTimeComboText2")|Out-Null
-$timecombobox.Items.Add("In 6 $OtherTimeComboText2")|Out-Null
-$System_Drawing_Point = New-Object System.Drawing.Point
-$System_Drawing_Point.X = 80
-$System_Drawing_Point.Y = 63
-$timecombobox.Location = $System_Drawing_Point
-$timecombobox.Name = "timecombobox"
-$System_Drawing_Size = New-Object System.Drawing.Size
-$System_Drawing_Size.Height = 21
-$System_Drawing_Size.Width = 212
-$timecombobox.Size = $System_Drawing_Size
-$timecombobox.TabIndex = 0
-$timecombobox.SelectedIndex = 0
-$form3.Controls.Add($timecombobox)
-
-
-$InitialFormWindowState = $form3.WindowState
-$form3.add_Load($OnLoadForm_StateCorrection)
-$form3.ShowDialog()| Out-Null
-
-} 
-
-### Create Shortcut #################################################################
-Function CreateShortcut {
-$Shell = New-Object -ComObject ("WScript.Shell")
-$ShortCut = $Shell.CreateShortcut($env:ALLUSERSPROFILE + "\Desktop\Windows 10 Upgrade.lnk")
-$ShortCut.TargetPath="$WorkFolder\bin\RunSilent.exe"
-$ShortCut.WorkingDirectory = "$WorkFolder";
-$ShortCut.WindowStyle = 1;
-$ShortCut.IconLocation = "$WorkFolder\Images\Icon.ico";
-$ShortCut.Description = "Windows 10 Upgrade";
-$ShortCut.Save()
-}
-
-### Scheduled Start Check Requirements ##############################################
-#region
-If ($StartBySchedTask -eq $True) {
-    CheckDiskSpace
-    CheckBattery
-    CheckRebootPending
-    CheckVPN
-    If ($global:CheckError -eq $true) {
-        (Get-Date -format g) + " Requirements Not Met" | Out-File $LogFile -Append
-        If ($VPN -eq $True) {
-            $VPNMessage = "VPN Connected"
-            $Info = "VPN Connected"
-            Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTaskPrereqCheck" -Type Error
-            }
-            Else {$VPNMessage = "Not Connected"}
-        If ($Battery -eq $True) {
-            $BatteryMessage = "On Battery - No Power Connected"
-            $Info = "On Battery - No Power Connected"
-            Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTaskPrereqCheck" -Type Error
-            }
-            Else {$BatteryMessage = "Power Connected"}
-        If ($RebootRequired -eq $True) {
-            $RebootRequiredMessage = "Reboot Required"
-            $Info = "Reboot Required"
-            Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTaskPrereqCheck" -Type Error
-            }
-            Else {$RebootRequiredMessage = "Not Required"}
-        If ($LowSpace -eq $True) {
-            $LowSpaceMessage = "Low Space"
-            $Info = "Low Space"
-            Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTaskPrereqCheck" -Type Error
-            }
-            Else {$LowSpaceMessage = "Enough Space"}
-
-        $Message = "Requirements Not Met.
-        VPN: $VPNMessage
-        Battery: $BatteryMessage
-        Reboot: $RebootRequiredMessage
-        Space: $LowSpaceMessage
-        "
-
-        Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 3 -Message $Message
-        [System.Environment]::Exit(99)
-        }
-        Else {
-        If (Test-Path $WorkFolder\$InplaceVersion\StartBySchedTask.txt) {
-            Remove-item $WorkFolder\$InplaceVersion\StartBySchedTask.txt -ErrorVariable ErrorAction -Force
-            If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "SchedTaskPrereqCheck" -Type Error}
-                Else {
-                    $Info = "Removed File $WorkFolder\$InplaceVersion\StartBySchedTask.txt"
-                    Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "SchedTaskPrereqCheck" -Type Info
-                    }
+### Countdown #######################################################################
+Function CountDown {
+    [TimeSpan]$span = $script:StartTime - (Get-Date)
+    "{0:hh}:{0:mm}:{0:ss}" -f $span
+    $Countdown_Label.Content = "{0:hh}:{0:mm}:{0:ss}" -f $span
+	If ($span.TotalSeconds -like "0*") {
+        $timer.Stop()
+        If (Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt) {
+            Remove-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt -ErrorVariable ErrorAction -Force
+            If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "CheckWindow" -Type Error}
+            Else {
+                $Info = "Removed File $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt"
+                Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Info
                 }
             }
-    }
-#endregion
+        Write-EventLog -LogName Application -Source Win10Inplace -EntryType Information -EventId 8 -Message "$InplaceVersionText started after countdown"
+        $Info = "$InplaceVersionText started after countdown"
+        Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "Countdown" -Type Warning
+        $form1.Close()
+	}
+}
 
-### Run Test ########################################################################   
-#If (($AlreadyCompliant -eq $true)) {GenerateForm} #/ Test
+### Show GUI ########################################################################
 
-### Start GUI #######################################################################
-If (!($AlreadyCompliant -eq $true) -and $StartBySchedTask -eq $Null) {GenerateForm}
+# Run Test  
+If (($AlreadyCompliant -eq $true)) {GenerateForm} #/ Test
+
+# Start GUI
+#If (!($AlreadyCompliant -eq $true)) {GenerateForm}

@@ -16,7 +16,18 @@ $InitialLog = "C:\Inplace.log"
 $DateFileName = Get-Date -format yyyyMMdd_HHmm
 $OSBuild = ([environment]::OSVersion.Version).Build
 $LogoPath = "$WorkFolder\Images\$Logo"
-$BGPath = "$WorkFolder\Images\$Background"
+$LinePath = "$WorkFolder\Images\$Line"
 $WindowsLogoPath = "$WorkFolder\Images\$WindowsLogo"
 $TSEnv = New-Object -COMObject Microsoft.SMS.TSEnvironment
+$BitlockerStatus = (Get-BitLockerVolume | Where-Object {$_.MountPoint -eq "C:"}).ProtectionStatus
+[Byte[]] $Key = (1..16)
+
+### Load WPF Framework ##############################################################
+Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Windows.Forms, System.Drawing
+$Global:AssemblyLocation = Split-Path -Parent $MyInvocation.MyCommand.Path
+$Global:ScriptPath = Split-Path -Path $PSSCriptRoot -Parent
+#$Global:AssemblyLocation = Join-Path -Path $ScriptPath -ChildPath .\bin
+foreach ($Assembly in (Dir $AssemblyLocation -Filter *.dll)) {
+     [System.Reflection.Assembly]::LoadFrom($Assembly.fullName) | out-null
+}
 #######################################################################################

@@ -1,4 +1,6 @@
-﻿### Import Config File ##############################################################
+﻿Param($DeviceName)
+
+### Import Config File ##############################################################
 . "$PSScriptRoot\Config.ps1"
 #####################################################################################
 
@@ -9,8 +11,6 @@
 ### Import Environment Variables ####################################################
 . "$PSScriptRoot\bin\Environment.ps1"
 #####################################################################################
-
-Param($DeviceName)
 
 # Add required assemblies
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Windows.Forms,System.Drawing
@@ -90,7 +90,13 @@ $Grid.ColumnDefinitions.Add($Column)
 
 # Add rows
 $Row = New-Object System.Windows.Controls.RowDefinition
+$Row.Height = [System.Windows.GridLength]::Auto
+$Grid.RowDefinitions.Add($Row)
+$Row = New-Object System.Windows.Controls.RowDefinition
 $Row.Height = "1*"
+$Grid.RowDefinitions.Add($Row)
+$Row = New-Object System.Windows.Controls.RowDefinition
+$Row.Height = [System.Windows.GridLength]::Auto
 $Grid.RowDefinitions.Add($Row)
 $Row = New-Object System.Windows.Controls.RowDefinition
 $Row.Height = [System.Windows.GridLength]::Auto
@@ -102,13 +108,24 @@ $Row = New-Object System.Windows.Controls.RowDefinition
 $Row.Height = "1*"
 $Grid.RowDefinitions.Add($Row)
 
+# Add Logo
+$Logo = New-Object System.Windows.Controls.Image
+$Logo.Source = "$LogoPath"
+$Logo.Height = 126
+$Logo.Width = "400"
+$Logo.VerticalAlignment = "Top"
+$Logo.HorizontalAlignment = "Left"
+$Grid.AddChild($Logo)
+$Logo.SetValue([System.Windows.Controls.Grid]::RowProperty,1)
+
+
 # Add a progress ring
 $ProgressRing = [MahApps.Metro.Controls.ProgressRing]::new()
 $ProgressRing.Opacity = 0
 $ProgressRing.IsActive = $false
 $ProgressRing.Margin = "0,0,0,60"
 $Grid.AddChild($ProgressRing)
-$ProgressRing.SetValue([System.Windows.Controls.Grid]::RowProperty,1)
+$ProgressRing.SetValue([System.Windows.Controls.Grid]::RowProperty,3)
 
 # Add a textblock
 $TextBlock = New-Object System.Windows.Controls.TextBlock
@@ -122,7 +139,7 @@ $TextBlock.VerticalAlignment = "Top"
 $TextBlock.HorizontalAlignment = "Center"
 $TextBlock.Opacity = 0
 $Grid.AddChild($TextBlock)
-$TextBlock.SetValue([System.Windows.Controls.Grid]::RowProperty,2)
+$TextBlock.SetValue([System.Windows.Controls.Grid]::RowProperty,4)
 
 # Add a textblock
 $TextBlock2 = New-Object System.Windows.Controls.TextBlock
@@ -136,7 +153,7 @@ $TextBlock2.VerticalAlignment = "Bottom"
 $TextBlock2.HorizontalAlignment = "Center"
 $TextBlock2.Opacity = 0
 $Grid.AddChild($TextBlock2)
-$TextBlock2.SetValue([System.Windows.Controls.Grid]::RowProperty,3)
+$TextBlock2.SetValue([System.Windows.Controls.Grid]::RowProperty,5)
 
 # Add to window
 $Window.AddChild($Grid)
@@ -151,7 +168,7 @@ $ColourDarkerAnimation = [System.Windows.Media.Animation.ColorAnimation]::new("#
 $TimerCode = {
     
     # The IF statement number should equal the number of sentences in the TextArray
-    If ($i -lt 7)
+    If ($i -lt 5)
     {
         $FadeoutAnimation.Add_Completed({            
             $TextBlock.Opacity = 0
@@ -162,12 +179,12 @@ $TimerCode = {
         $TextBlock.BeginAnimation([System.Windows.Controls.TextBlock]::OpacityProperty,$FadeoutAnimation)   
     }
     # The final sentence to display ongoing
-    ElseIf ($i -eq 7)
+    ElseIf ($i -eq 5)
     {
         
         $FadeoutAnimation.Add_Completed({            
             $TextBlock.Opacity = 0
-            $TextBlock.Text = "Windows 10 Upgrade wird ausgeführt"
+            $TextBlock.Text = $SplashText3
             $TextBlock.BeginAnimation([System.Windows.Controls.TextBlock]::OpacityProperty,$FadeinAnimation)
             $ProgressRing.IsActive = $True
 
@@ -213,6 +230,7 @@ $Window.Add_Loaded({
     # Begin animations
     $TextBlock.BeginAnimation([System.Windows.Controls.TextBlock]::OpacityProperty,$FadeinAnimation)
     $TextBlock2.BeginAnimation([System.Windows.Controls.TextBlock]::OpacityProperty,$FadeinAnimation)
+    $Logo.BeginAnimation([System.Windows.Controls.Image]::OpacityProperty,$FadeinAnimation)
     $ProgressRing.BeginAnimation([System.Windows.Controls.TextBlock]::OpacityProperty,$FadeinAnimation)
     $ColourBrighterAnimation.Add_Completed({            
         $Window.Background.BeginAnimation([System.Windows.Media.SolidColorBrush]::ColorProperty,$ColourDarkerAnimation)

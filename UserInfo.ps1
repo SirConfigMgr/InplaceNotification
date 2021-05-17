@@ -468,7 +468,7 @@ $nobutton.Add_Click({
     $form1.Close()
     Write-EventLog -LogName Application -Source Win10Inplace -EntryType Warning -EventId 4 -Message "User deferred Update."
     NextRunTimer
-    #[System.Environment]::Exit(99)
+    [System.Environment]::Exit(99)
 })
 
 $okbutton.Add_Click({
@@ -1011,7 +1011,7 @@ Function CountDown {
 ### Show GUI ########################################################################
 
 # Run Test  
-If (($AlreadyCompliant -eq $true)) {GenerateForm} #/ Test
+#If (($AlreadyCompliant -eq $true)) {GenerateForm} #/ Test
 
 # Start GUI
-#If (!($AlreadyCompliant -eq $true)) {GenerateForm}
+If (!($AlreadyCompliant -eq $true)) {GenerateForm}

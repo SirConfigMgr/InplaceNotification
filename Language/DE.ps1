@@ -31,7 +31,8 @@ $SpaceTextOK = "Genug freier Festplattenspeicher"
 $SpaceTextNotOK = "Freier Festplattenspeicher unter $MinFreeSpace GB"
 $SpaceText = "Sorgen Sie für genügend freien Speicherplatz, indem Sie nicht mehr&#xD;&#xA;benötigte Dateien löschen."
 $NoButtonText2 = "Schließen"
-$Message1 = "Erneut erinnern","Sie werden in 24 Stunden erneut erinnert. "
+$Message0 = "Erneut erinnern"
+$Message1 = "Sie werden in 24 Stunden erneut erinnert. "
 
 # Other Time Window
 $OtherTimeWindowTitle = "Zeitpunkt wählen"

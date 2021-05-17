@@ -31,7 +31,8 @@ $SpaceTextOK = "Enough free diskspace"
 $SpaceTextNotOK = "Free diskspace below 10 GB"
 $SpaceText = "Make sure you have enough free space by deleting unneeded files."
 $NoButtonText2 = "Close"
-$Message1 = "Remind again","You will be reminded again in 24 hours. "
+$Message0 = "Remind again"
+$Message1 = "You will be reminded again in 24 hours. "
 
 # Other Time Window
 $OtherTimeWindowTitle = "Select time"

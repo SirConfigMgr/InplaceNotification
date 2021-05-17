@@ -383,7 +383,6 @@ $Info = "Show Inplace Message"
 Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -Type Info
 
 [xml]$inputXML = @"
-
 <Controls:MetroWindow
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -406,10 +405,12 @@ Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/$WindowThemeColor.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.FlatButton.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Colors.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Accents/Blue.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Accents/BaseLight.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/FlatButton.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
@@ -427,8 +428,7 @@ Write-Log -Path $LogFile -Message ($Info | Out-String) -Component "MainWindow" -
     </Grid>
 
 </Controls:MetroWindow>
-
-"@ 
+"@
 # Load Xaml Code 
 [void][System.Reflection.Assembly]::LoadWithPartialName('presentationframework')
 [xml]$XAML = $inputXML
@@ -456,7 +456,7 @@ $othertimebutton.Add_Click({
 })
 
 $nobutton.Add_Click({
-    [MahApps.Metro.Controls.Dialogs.DialogManager]::ShowModalMessageExternal($Form1,"Test","Test",[MahApps.Metro.Controls.Dialogs.MessageDialogStyle]::Affirmative)
+    [MahApps.Metro.Controls.Dialogs.DialogManager]::ShowModalMessageExternal($Form1,$Message0,$Message1,[MahApps.Metro.Controls.Dialogs.MessageDialogStyle]::Affirmative)
     If (!(Test-Path -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt)) {
         New-Item -Path $WorkFolder\$InplaceVersion\DoNot_WindowsInplaceUpgrade.txt -ErrorVariable ErrorAction
         If ($ErrorAction) {Write-Log -Path $LogFile -Message ($ErrorAction | Out-String) -Component "MainWindow" -Type Error}
@@ -468,7 +468,7 @@ $nobutton.Add_Click({
     $form1.Close()
     Write-EventLog -LogName Application -Source Win10Inplace -EntryType Warning -EventId 4 -Message "User deferred Update."
     NextRunTimer
-    [System.Environment]::Exit(99)
+    #[System.Environment]::Exit(99)
 })
 
 $okbutton.Add_Click({
@@ -547,10 +547,12 @@ Function ShowMessage {
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/$WindowThemeColor.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.FlatButton.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Colors.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Accents/Blue.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Accents/BaseLight.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/FlatButton.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
@@ -710,10 +712,12 @@ Function OtherTime {
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Themes/$WindowThemeColor.xaml" />
-            <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.FlatButton.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Controls.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Fonts.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Colors.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Accents/Blue.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/Accents/BaseLight.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/MahApps.Metro;component/Styles/FlatButton.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Window.Resources>
